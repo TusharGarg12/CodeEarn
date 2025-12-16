@@ -1,15 +1,15 @@
 package com.example.codeforcesapplocker
 
 import android.util.Log
-import kotlinx.coroutines.flow.first
 import retrofit2.HttpException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class EarnRepository @Inject constructor(
-    private val api: CodeforcesApi,
-    private val dao: AppDao
+    private val api: CodeforcesApiService,
+    private val dao: AppDao, // To check if problem was already claimed
+    private val timeBankRepository: TimeBankRepository // To add time to the wallet
 ) {
 
     // Reward: 30 Minutes per problem (in milliseconds)
@@ -17,10 +17,15 @@ class EarnRepository @Inject constructor(
 
     suspend fun verifyAndReward(handle: String): EarnResult {
         try {
-            // 1. Fetch last 10 submissions
-            val response = api.getUserSubmissions(handle)
-            if (response.status != "OK" || response.result == null) {
-                return EarnResult.Error("Codeforces API Error: ${response.comment}")
+            // 1. Fetch recent submissions
+            val response = api.getUserSubmissions(handle, count = 50)
+
+            if (response.status == "FAILED") {
+                return EarnResult.Error("API Error: ${response.comment ?: "Unknown Error"}")
+            }
+
+            if (response.result == null) {
+                return EarnResult.Error("No data received from Codeforces.")
             }
 
             // 2. Filter for Accepted solutions ("OK")
@@ -32,21 +37,17 @@ class EarnRepository @Inject constructor(
 
             var problemsRewarded = 0
 
-            // 3. Check which ones are NEW (not in our DB)
+            // 3. Process each submission
             for (sub in acceptedSubmissions) {
+                // Check DB: Have we paid for this specific submission ID yet?
                 val alreadyClaimed = dao.isSubmissionClaimed(sub.id)
 
                 if (!alreadyClaimed) {
-                    // 4. PAY THE USER!
+                    // A. Mark as claimed in DB so we don't pay again
                     dao.insertClaimedSubmission(ClaimedSubmission(submissionId = sub.id))
 
-                    val currentWallet = dao.getWallet().first()
-                    val newBalance = (currentWallet?.balanceInMillis ?: 0L) + REWARD_PER_PROBLEM
-
-                    dao.updateWallet(
-                        currentWallet?.copy(balanceInMillis = newBalance)
-                            ?: UserWallet(balanceInMillis = newBalance)
-                    )
+                    // B. Add time to the bank using our Repository helper
+                    timeBankRepository.addTime(REWARD_PER_PROBLEM)
 
                     problemsRewarded++
                     Log.d("EarnRepo", "Rewarded for submission ${sub.id}")
@@ -60,17 +61,14 @@ class EarnRepository @Inject constructor(
             }
 
         } catch (e: HttpException) {
-            // FIX: Extract the actual error message from the server if possible
-            val errorBody = e.response()?.errorBody()?.string()
-            Log.e("EarnRepo", "HTTP Error: $errorBody")
-            return EarnResult.Error("Server Error ${e.code()}: $errorBody")
+            return EarnResult.Error("Server Error ${e.code()}")
         } catch (e: Exception) {
-            Log.e("EarnRepo", "Network Error", e)
-            return EarnResult.Error(e.message ?: "Unknown Network Error")
+            return EarnResult.Error(e.message ?: "Network Error")
         }
     }
 }
 
+// Sealed class must be outside the main class to be accessible elsewhere
 sealed class EarnResult {
     data class Success(val problemsSolved: Int, val timeEarned: Long) : EarnResult()
     object NoNewSubmissions : EarnResult()

@@ -20,11 +20,13 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "codeearn_db"
-        ).fallbackToDestructiveMigration() // Wipes DB if you change schema (good for dev)
+        )
+            .fallbackToDestructiveMigration() // Useful for dev; wipes data if you change table structure
             .build()
     }
 
     @Provides
+    @Singleton // It is good practice to make the DAO a singleton too since the DB is one
     fun provideAppDao(db: AppDatabase): AppDao {
         return db.appDao()
     }

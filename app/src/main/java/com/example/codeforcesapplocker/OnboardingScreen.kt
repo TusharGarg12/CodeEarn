@@ -23,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -36,21 +35,17 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 
 @Composable
 fun OnboardingScreen(
+    // FIX: Do NOT put 'handle: String' here.
+    // The ViewModel holds the data, and MainActivity calls this without arguments.
     viewModel: OnboardingViewModel = hiltViewModel(),
     onSetupComplete: () -> Unit
 ) {
-    // Collecting flow from ViewModel
+    // 1. Observe the ViewModel State (Single Source of Truth)
     val uiState by viewModel.uiState.collectAsState()
+
     val context = LocalContext.current
 
-    // 1. Navigation Event: Watch for isSetupComplete becoming true
-    LaunchedEffect(uiState.isSetupComplete) {
-        if (uiState.isSetupComplete) {
-            onSetupComplete()
-        }
-    }
-
-    // 2. Permission Check: Runs on start and when returning from Settings
+    // Re-check permissions every time the app resumes (e.g. coming back from Settings)
     LifecycleResumeEffect(Unit) {
         viewModel.checkPermissions()
         onPauseOrDispose { }
@@ -70,15 +65,20 @@ fun OnboardingScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Step 1: Codeforces Handle
-        // Changed to use ViewModel state instead of local state
+        // Step 1: Codeforces Handle Input
         OutlinedTextField(
-            value = uiState.codeforcesHandle,
-            onValueChange = viewModel::onHandleChange,
+            value = uiState.codeforcesHandle, // Read from ViewModel
+            onValueChange = { viewModel.onHandleChange(it) }, // Send to ViewModel
             label = { Text("Codeforces Handle") },
             placeholder = { Text("e.g. tourist") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            isError = uiState.errorMessage != null,
+            supportingText = {
+                if (uiState.errorMessage != null) {
+                    Text(uiState.errorMessage ?: "")
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -101,7 +101,7 @@ fun OnboardingScreen(
             isGranted = uiState.isAccessibilityGranted,
             onClick = {
                 if (!uiState.isAccessibilityGranted) {
-                    Toast.makeText(context, "Find 'CodeEarn' -> Allow Restricted Settings first!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Find 'CodeEarn' and enable it.", Toast.LENGTH_LONG).show()
                 }
                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                 context.startActivity(intent)
@@ -112,8 +112,8 @@ fun OnboardingScreen(
 
         // Complete Button
         Button(
-            // No need to pass arguments, VM has the state
-            onClick = { viewModel.completeSetup() },
+            // Pass the handle from the state to the complete function
+            onClick = { viewModel.completeSetup(uiState.codeforcesHandle) },
             enabled = uiState.isOverlayGranted &&
                     uiState.isAccessibilityGranted &&
                     uiState.codeforcesHandle.isNotBlank(),
@@ -124,9 +124,7 @@ fun OnboardingScreen(
     }
 }
 
-/**
- * A helper composable to display permission status.
- */
+// --- Helper Composable for Permission Rows ---
 @Composable
 fun PermissionRow(
     title: String,

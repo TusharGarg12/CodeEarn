@@ -22,7 +22,7 @@ data class RestrictedApp(
 
 @Entity(tableName = "user_wallet")
 data class UserWallet(
-    @PrimaryKey val id: Int = 0, // We only need one row for the user
+    @PrimaryKey val id: Int = 0,
     val balanceInMillis: Long = 0
 )
 
@@ -32,7 +32,7 @@ data class ClaimedSubmission(
     val claimedAt: Long = System.currentTimeMillis()
 )
 
-// --- DAO (Data Access Object) ---
+// --- DAO ---
 
 @Dao
 interface AppDao {
@@ -40,14 +40,11 @@ interface AppDao {
     @Query("SELECT * FROM restricted_apps")
     fun getAllRestrictedApps(): Flow<List<RestrictedApp>>
 
-    @Query("SELECT * FROM restricted_apps WHERE packageName = :pkg LIMIT 1")
-    suspend fun getRestrictedApp(pkg: String): RestrictedApp?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRestrictedApp(app: RestrictedApp)
 
     @Delete
-    suspend fun deleteRestrictedApp(app: RestrictedApp)
+    suspend fun deleteRestrictedApp(app: RestrictedApp) // <--- ADDED THIS
 
     // Wallet
     @Query("SELECT * FROM user_wallet WHERE id = 0")
@@ -64,7 +61,7 @@ interface AppDao {
     suspend fun insertClaimedSubmission(submission: ClaimedSubmission)
 }
 
-// --- DATABASE CLASS ---
+// --- DATABASE ---
 
 @Database(entities = [RestrictedApp::class, UserWallet::class, ClaimedSubmission::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {

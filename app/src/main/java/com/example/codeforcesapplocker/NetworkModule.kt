@@ -23,7 +23,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideCodeforcesApi(retrofit: Retrofit): CodeforcesApi {
-        return retrofit.create(CodeforcesApi::class.java)
+    fun provideCodeforcesApi(retrofit: Retrofit): CodeforcesApiService {
+        return retrofit.create(CodeforcesApiService::class.java)
     }
 }

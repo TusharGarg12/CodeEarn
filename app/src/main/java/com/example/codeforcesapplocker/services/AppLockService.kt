@@ -4,14 +4,12 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import com.example.codeforcesapplocker.AppDao
-import com.example.codeforcesapplocker.UserWallet
+import com.example.codeforcesapplocker.TimeBankRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -25,24 +23,24 @@ class AppLockService : AccessibilityService() {
     lateinit var overlayWindowManager: OverlayWindowManager
 
     @Inject
-    lateinit var appDao: AppDao
+    lateinit var timeRepository: TimeBankRepository
 
+    // Coroutine Scope for the service lifecycle
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+
+    // List of apps to block (e.g., com.instagram.android)
     private var restrictedPackages = setOf<String>()
 
-    // The Timer Job that deducts time
+    // Timer Logic Variables
     private var timerJob: Job? = null
-
-    companion object {
-        private const val TAG = "CodeEarn_Lock"
-        // Default time: 2 Minutes (120,000 ms)
-        private const val DEFAULT_TIME_MS = 120000L
-    }
+    private var currentSessionBalance: Long = 0L // Tracks time in memory
+    private var isTimerRunning = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.e(TAG, ">>> SERVICE STARTED <<<")
+        Log.d("AppLockService", "Service Connected")
 
+        // 1. Configure Accessibility Service
         val info = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
@@ -51,10 +49,11 @@ class AppLockService : AccessibilityService() {
         }
         this.serviceInfo = info
 
+        // 2. Observe the list of restricted apps from Database
         serviceScope.launch {
-            appDao.getAllRestrictedApps().collectLatest { list ->
-                restrictedPackages = list.map { it.packageName }.toSet()
-                Log.e(TAG, "Restricted List Updated: $restrictedPackages")
+            timeRepository.restrictedApps.collect { list ->
+                restrictedPackages = list
+                Log.d("AppLockService", "Restricted Apps Updated: $list")
             }
         }
     }
@@ -63,60 +62,54 @@ class AppLockService : AccessibilityService() {
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: return
 
-            // Log.e(TAG, "App Opened: $packageName") // Commented out to reduce noise
-
             if (restrictedPackages.contains(packageName)) {
-                // IT IS A RESTRICTED APP!
-                // Don't lock immediately. Start the countdown "Banker".
+                // User opened a restricted app (e.g., Instagram)
                 startTimer()
             } else {
-                // IT IS A SAFE APP
-                if (packageName == this.packageName) {
-                    // Ignore our own app (keep overlay if shown)
-                    return
+                // User is in a safe app (or our own app)
+                // Note: We check if packageName != null to avoid stopping on system UI glitches
+                if (packageName != this.packageName) {
+                    stopTimer()
                 }
-
-                // If we leave the restricted app, STOP paying and HIDE overlay
-                stopTimer()
-                overlayWindowManager.hide()
             }
         }
     }
 
     private fun startTimer() {
-        // If timer is already running (e.g. switched from Instagram to YouTube), don't restart it
-        if (timerJob?.isActive == true) return
+        // Prevent starting multiple timers if user switches between two restricted apps quickly
+        if (isTimerRunning) return
 
-        Log.e(TAG, "Starting Timer...")
+        isTimerRunning = true
+        Log.d("AppLockService", "Starting Timer...")
 
         timerJob = serviceScope.launch(Dispatchers.IO) {
-            while (isActive) {
-                // 1. Get Current Balance
-                // We use first() to get the current snapshot from the Flow
-                var wallet = appDao.getWallet().first()
+            // 1. Get the latest time balance from DB
+            // We use .first() to get the snapshot value
+            currentSessionBalance = timeRepository.timeBalance.first()
 
-                // If user has no wallet row yet, create one with default time
-                if (wallet == null) {
-                    wallet = UserWallet(id = 0, balanceInMillis = DEFAULT_TIME_MS)
-                    appDao.updateWallet(wallet)
-                }
+            while (isActive && isTimerRunning) {
+                if (currentSessionBalance > 1000) {
+                    // HAS TIME: Deduct 1 second locally
+                    currentSessionBalance -= 1000
 
-                if (wallet.balanceInMillis > 0) {
-                    // 2. HAS TIME: Deduct 1 second (1000ms)
-                    val newBalance = wallet.balanceInMillis - 1000
-                    appDao.updateWallet(wallet.copy(balanceInMillis = newBalance))
+                    // Debug log to show it's working (remove in production)
+                    // Log.d("AppLockService", "Time left: ${currentSessionBalance/1000}s")
 
-                    Log.e(TAG, "Time Remaining: ${newBalance / 1000}s")
-
-                    // Wait 1 second before next tick
                     delay(1000)
                 } else {
-                    // 3. NO TIME: Lock the screen!
-                    Log.e(TAG, "Time's Up! Locking screen.")
+                    // NO TIME LEFT: Lock the screen!
+                    Log.d("AppLockService", "Time is up! Locking.")
+
+                    // Show Overlay on Main Thread
                     withContext(Dispatchers.Main) {
                         overlayWindowManager.show()
                     }
-                    // Stop the timer loop since we are locked
+
+                    // Set balance to 0 and save to DB immediately
+                    currentSessionBalance = 0
+                    timeRepository.updateTime(0)
+
+                    // Break the loop (timer stops, but overlay stays)
                     break
                 }
             }
@@ -124,21 +117,28 @@ class AppLockService : AccessibilityService() {
     }
 
     private fun stopTimer() {
-        if (timerJob != null) {
-            Log.e(TAG, "Stopping Timer (Left app)")
-            timerJob?.cancel()
-            timerJob = null
+        if (!isTimerRunning) return
+
+        Log.d("AppLockService", "Stopping Timer & Saving Balance")
+        isTimerRunning = false
+        timerJob?.cancel()
+        timerJob = null
+
+        // 1. Hide the Lock Overlay
+        overlayWindowManager.hide()
+
+        // 2. SAVE the remaining time to the Database
+        serviceScope.launch(Dispatchers.IO) {
+            timeRepository.updateTime(currentSessionBalance)
         }
     }
 
     override fun onInterrupt() {
-        overlayWindowManager.hide()
         stopTimer()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        overlayWindowManager.hide()
         stopTimer()
     }
 }
