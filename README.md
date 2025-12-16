@@ -60,15 +60,21 @@ System Integration: AccessibilityService API, WindowManager
 
 Onboarding
 
+![WhatsApp Image 2025-12-17 at 3 09 18 AM](https://github.com/user-attachments/assets/f519e5f9-5263-4f88-ae00-f2ebc70d3e4b)
+
+
 Dashboard
+
+![WhatsApp Image 2025-12-17 at 3 09 18 AM (2)](https://github.com/user-attachments/assets/a616795f-6915-481c-95c9-c0a9fcaedfb7)
+
 
 Locked State
 
-(Add Screenshot)
+![WhatsApp Image 2025-12-17 at 3 09 18 AM (1)](https://github.com/user-attachments/assets/f406eba4-07fe-41e9-8691-313f6d175f8f)
 
-(Add Screenshot)
+<img width="2048" height="2048" alt="Gemini_Generated_Image_p6t83lp6t83lp6t8" src="https://github.com/user-attachments/assets/1d412bdb-af03-4bcd-852b-237386266dbd" />
 
-(Add Screenshot)
+
 
 🔧 Installation & Setup
 
