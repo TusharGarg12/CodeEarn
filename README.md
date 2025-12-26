@@ -1,97 +1,150 @@
-CodeEarn 🔒💻
+CodeEarn - Earn Your Screen Time 🧠🔓
 
-Turn your distractions into motivation.
-Lock your addictive apps and unlock them only by solving problems on Codeforces.
+CodeEarn is a productivity-focused Android App Locker that forces you to improve your coding skills before you can doom-scroll. It blocks distracting apps (like Instagram, YouTube) and requires you to solve Codeforces problems to "earn" unlock time.
 
-CodeEarn is an Android productivity app built with Jetpack Compose and Kotlin that helps competitive programmers maintain focus. It uses an Accessibility Service to detect when you open restricted apps (like Instagram or YouTube) and blocks them with an overlay until you earn more "screen time" by solving algorithmic problems.
+The Logic: 1 Accepted Solution = 30 Minutes of App Time.
 
-✨ Features
+🚀 Features
 
-🚫 App Blocker: Select specific apps to lock from a list of all installed packages.
+1. The Time Bank ⏳
 
-⏳ Time Allowance: Users start with a time bank (e.g., 10 minutes). Time ticks down only while using restricted apps.
+Instead of a hard block, CodeEarn uses a currency model.
 
-🛡️ The Enforcer: When time hits 0, a system-level overlay blocks the screen.
+Earn: Solve problems to add time to your wallet.
 
-💰 Solve to Earn: Connects to the Codeforces API to verify your recent problem submissions.
+Spend: Time is deducted second-by-second only while you are using restricted apps.
 
-✅ Reward System: Automatically detects new "Accepted" solutions and rewards you with 30 minutes of screen time per problem.
+Lock: Once the timer hits 00:00, the "Black Overlay" appears, blocking access until you solve another problem.
+
+2. Smart Recommendation Bot 🤖
+
+The app doesn't just give you random problems. It analyzes your Codeforces profile and generates a personalized daily problem set using a 4-Slot Strategy:
+
+Slot 1 (The Fixer): Targets your weakest topic (Rating: Current to +300).
+
+Slot 2 (Power Play): A problem from your strongest topic to maintain speed (Rating: ±100).
+
+Slot 3 (General): 2 problems from various topics to simulate contest randomness.
+
+Slot 4 (The Boss): A difficult problem strictly above your level (+200 to +400) to push your limits.
+
+3. Focus Mode 🛡️
+
+Uses Android's Accessibility Service to detect when you open specific package names.
+
+Uses System Overlay to block the screen physically.
+
+Works offline (Time Bank is stored locally).
 
 🛠️ Tech Stack
 
 Language: Kotlin
 
-UI: Jetpack Compose (Material3)
+UI: Jetpack Compose (Material 3)
 
-Architecture: MVVM (Model-View-ViewModel) + Clean Architecture principles
+Architecture: MVVM (Model-View-ViewModel) + Clean Architecture
 
 Dependency Injection: Dagger Hilt
 
-Async: Coroutines & Flow
+Network: Retrofit + Gson (Codeforces API)
 
-Local Data: * Room Database: For storing restricted apps and wallet balance.
+Local Database: Room Database (SQL)
 
-DataStore: For storing user preferences (Codeforces handle).
+Preferences: Jetpack DataStore
 
-Networking: Retrofit + Gson (Codeforces API)
+Background Tasks: Kotlin Coroutines & Flows
 
-Background Tasks: Android Accessibility Service (for app detection) & WindowManager (for blocking overlay).
-
-🚀 Getting Started
-
-Prerequisites
-
-Android Studio Ladybug (or newer)
-
-Android Device/Emulator running Android 8.0 (Oreo) or higher.
-
-Installation
-
-Clone the repo:
-
-git clone [https://github.com/YourUsername/CodeEarn.git](https://github.com/YourUsername/CodeEarn.git)
-
-
-Open the project in Android Studio.
-
-Sync Gradle files.
-
-Run on your device.
-
-⚠️ Permissions Setup (Crucial)
-
-Since this app uses advanced system features, you must manually grant permissions on the first run:
-
-Display over other apps: Allows the lock screen overlay.
-
-Accessibility Service: Allows the app to detect which package is currently in the foreground.
-
-Note for Android 13+: If you side-load the APK, you may need to go to "App Info" -> three dots -> "Allow Restricted Settings" to enable the Accessibility service.
+System Integration: AccessibilityService API, WindowManager
 
 📸 Screenshots
 
+Onboarding
+
+![WhatsApp Image 2025-12-17 at 3 09 18 AM](https://github.com/user-attachments/assets/f519e5f9-5263-4f88-ae00-f2ebc70d3e4b)
+
+
 Dashboard
 
-App Selection
+![WhatsApp Image 2025-12-17 at 3 09 18 AM (2)](https://github.com/user-attachments/assets/a616795f-6915-481c-95c9-c0a9fcaedfb7)
 
-Locked Screen
 
-(Add screenshot here)
+Locked State
 
-(Add screenshot here)
+![WhatsApp Image 2025-12-17 at 3 09 18 AM (1)](https://github.com/user-attachments/assets/f406eba4-07fe-41e9-8691-313f6d175f8f)
 
-(Add screenshot here)
+<img width="2048" height="2048" alt="Gemini_Generated_Image_p6t83lp6t83lp6t8" src="https://github.com/user-attachments/assets/1d412bdb-af03-4bcd-852b-237386266dbd" />
 
-🏗️ Architecture Overview
 
-services/AppLockService.kt: The core engine. Runs in the background, detects window changes, manages the countdown timer, and triggers the overlay.
 
-services/OverlayWindowManager.kt: Manages the Floating Window (overlay) lifecycle and attaches the Compose UI to the WindowManager.
+🔧 Installation & Setup
 
-data/repository/EarnRepository.kt: Handles the logic for fetching Codeforces submissions and calculating rewards.
+Clone the repo
 
-feature/appselection: UI for the user to toggle which apps to restrict.
+git clone [https://github.com/TusharGarg12/CodeEarn.git](https://github.com/TusharGarg12/CodeEarn.git)
+
+
+Open in Android Studio (Ladybug or newer recommended).
+
+Sync Gradle.
+
+Run on Device (Emulator might not support Overlay permissions correctly, physical device recommended).
+
+Permissions Required
+
+Upon first launch, you must grant:
+
+"Display Over Other Apps": To show the lock screen.
+
+"Accessibility Service": To detect when you open Instagram/YouTube.
+
+📂 Project Structure
+
+com.example.codeforcesapplocker
+├── data
+│   ├── network          # Retrofit API & Models
+│   ├── AppDatabase.kt   # Room Database
+│   ├── RecommendationRepository.kt # The "Bot" Logic
+│   └── TimeBankRepository.kt       # Wallet & Lock Logic
+├── di                   # Hilt Modules (Network, Database)
+├── services             # Background Services
+│   ├── AppLockService.kt        # Accessibility Service (The Police)
+│   └── OverlayWindowManager.kt  # The Lock Screen View
+├── ui
+│   ├── dashboard        # Main Screen (Problem List & Timer)
+│   ├── onboarding       # Handle Setup
+│   └── appselection     # Choose apps to lock
+└── MainActivity.kt      # Navigation Host
+
+
+🔒 Privacy & Permissions
+
+Why does this app need Accessibility Services?
+To function as an App Locker, CodeEarn needs to know which app is currently on your screen (e.g., to distinguish between "Calculator" and "Instagram").
+
+Data Privacy:
+
+All data is processed locally on your device.
+
+Your Codeforces handle is used only to fetch public submission data.
+
+No personal usage data is sent to any external server.
 
 🤝 Contributing
 
-Contributions are welcome! Please fork the repository and create a Pull Request for any features or bug fixes.
+This is a personal project, but ideas are welcome!
+
+Fork the Project
+
+Create your Feature Branch (git checkout -b feature/AmazingFeature)
+
+Commit your Changes (git commit -m 'Add some AmazingFeature')
+
+Push to the Branch (git push origin feature/AmazingFeature)
+
+Open a Pull Request
+
+📄 License
+
+Distributed under the MIT License. See LICENSE for more information.
+
+*Built with ❤️ and ☕ by [TusharGarg12]
